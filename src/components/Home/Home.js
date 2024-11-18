@@ -2,48 +2,90 @@ import React from 'react';
 import classes from './Home.module.css';
 import NewTasks from '../New Tasks/NewTasks';
 import PreviewTasks from '../Preview Tasks/PreviewTasks';
+import axios from 'axios';
+
 const Home = () => {
-  const [tasks, setTasks] = React.useState(JSON.parse(localStorage.getItem('TODO')) || []);
+  const [tasks, setTasks] = React.useState([]);
+
+  // Fetch tasks from MongoDB on component mount
   React.useEffect(() => {
-    localStorage.setItem('TODO', JSON.stringify(tasks));
-  }, [tasks]);
-  function updateTasks(updatedTasks) {
-    setTasks(updatedTasks);
-  }
-  function saveHandler(todoTitle) {
+    const fetchTasks = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/tasks'); // Backend route to fetch tasks
+        setTasks(response.data);
+      } catch (error) {
+        console.error('Error fetching tasks:', error);
+      }
+    };
+    fetchTasks();
+  }, []);
+
+  // Function to update tasks in MongoDB
+  const updateTasks = async (updatedTasks) => {
+    try {
+      await axios.put('http://localhost:5000/api/tasks', { tasks: updatedTasks }); // Backend route to update tasks
+      setTasks(updatedTasks);
+    } catch (error) {
+      console.error('Error updating tasks:', error);
+    }
+  };
+
+  // Save task to MongoDB
+  const saveHandler = async (todoTitle) => {
     const newTodo = {
-      id: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
       title: todoTitle,
       completed: false,
     };
-    updateTasks([newTodo, ...tasks]);
-  }
-  function onDeleteHandler(id) {
-    const update = tasks.filter((item) => item.id !== id);
-    updateTasks(update);
-  }
-  function updateTitle(updatedId, updatedTitle) {
-    const update = tasks.map((item) => {
-      if (item.id === updatedId) {
-        item.title = updatedTitle;
-      }
-      return item;
-    });
-    updateTasks(update);
-  }
-  function updateStatus(updatedId, status) {
-    const update = tasks.map((item) => {
-      if (item.id === updatedId) {
-        item.completed = status;
-      }
-      return item;
-    });
-    updateTasks(update);
-  }
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/tasks', newTodo);
+      setTasks([response.data, ...tasks]);
+    } catch (error) {
+      console.error('Error saving task:', error);
+    }
+  };
+
+  // Delete task from MongoDB
+  const onDeleteHandler = async (id) => {
+    try {
+      await axios.delete(`http://localhost:5000/api/tasks/${id}`);
+      const updatedTasks = tasks.filter((task) => task._id !== id); // Remove task from state
+      setTasks(updatedTasks);  // Update state after deletion
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
+  };
+
+
+  const updateTitle = async (updatedId, updatedTitle) => {
+    const updatedTask = tasks.map((task) =>
+      task._id === updatedId ? { ...task, title: updatedTitle } : task
+    );
+
+    try {
+      const response = await axios.put(`http://localhost:5000/api/tasks/${updatedId}`, {
+        title: updatedTitle,
+        completed: false,  // Assuming you want to reset the status on title change
+      });
+      setTasks(updatedTask);  // Update state with the newly updated task
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
+  };
+
+  // Update task status in MongoDB
+  const updateStatus = async (updatedId, status) => {
+    const updatedTask = tasks.map((task) =>
+      task._id === updatedId ? { ...task, completed: status } : task
+    );
+    await updateTasks(updatedTask);
+  };
+
   // Calculate progress
   const completedTasks = tasks.filter((task) => task.completed).length;
   const totalTasks = tasks.length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
   return (
     <div className={classes.container}>
       <div className={classes.newTasks}>
@@ -82,4 +124,5 @@ const Home = () => {
     </div>
   );
 };
+
 export default Home;
